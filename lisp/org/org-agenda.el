@@ -3238,41 +3238,46 @@ s   Search for keywords                 M   Like m, but only TODO entries
 	 org-cmd type lprops)
     (while (setq org-cmd (pop cmds))
       (setq type (car org-cmd))
-      (setq match (eval (nth 1 org-cmd)))
-      (setq lprops (nth 2 org-cmd))
-      (let ((org-agenda-overriding-arguments
-	     (if (eq org-agenda-overriding-cmd org-cmd)
-		 (or org-agenda-overriding-arguments
-		     org-agenda-overriding-cmd-arguments))))
-	(cond
-	 ((eq type 'agenda)
-	  (org-let2 gprops lprops
-	    '(call-interactively 'org-agenda-list)))
-	 ((eq type 'agenda*)
-	  (org-let2 gprops lprops
-	    '(funcall 'org-agenda-list nil nil t)))
-	 ((eq type 'alltodo)
-	  (org-let2 gprops lprops
-	    '(call-interactively 'org-todo-list)))
-	 ((eq type 'search)
-	  (org-let2 gprops lprops
-	    '(org-search-view current-prefix-arg match nil)))
-	 ((eq type 'stuck)
-	  (org-let2 gprops lprops
-	    '(call-interactively 'org-agenda-list-stuck-projects)))
-	 ((eq type 'tags)
-	  (org-let2 gprops lprops
-	    '(org-tags-view current-prefix-arg match)))
-	 ((eq type 'tags-todo)
-	  (org-let2 gprops lprops
-	    '(org-tags-view '(4) match)))
-	 ((eq type 'todo)
-	  (org-let2 gprops lprops
-	    '(org-todo-list match)))
-	 ((fboundp type)
-	  (org-let2 gprops lprops
-	    '(funcall type match)))
-	 (t (error "Invalid type in command series")))))
+      (let ((started-at (float-time)))
+        (message (substring (format "START AGENDA SECTION %S" org-cmd) 0 50))
+        (setq match (eval (nth 1 org-cmd)))
+        (setq lprops (nth 2 org-cmd))
+        (let ((org-agenda-overriding-arguments
+	       (if (eq org-agenda-overriding-cmd org-cmd)
+		   (or org-agenda-overriding-arguments
+		       org-agenda-overriding-cmd-arguments))))
+          (let ((ret
+	         (cond
+	          ((eq type 'agenda)
+	           (org-let2 gprops lprops
+	             '(call-interactively 'org-agenda-list)))
+	          ((eq type 'agenda*)
+	           (org-let2 gprops lprops
+	             '(funcall 'org-agenda-list nil nil t)))
+	          ((eq type 'alltodo)
+	           (org-let2 gprops lprops
+	             '(call-interactively 'org-todo-list)))
+	          ((eq type 'search)
+	           (org-let2 gprops lprops
+	             '(org-search-view current-prefix-arg match nil)))
+	          ((eq type 'stuck)
+	           (org-let2 gprops lprops
+	             '(call-interactively 'org-agenda-list-stuck-projects)))
+	          ((eq type 'tags)
+	           (org-let2 gprops lprops
+	             '(org-tags-view current-prefix-arg match)))
+	          ((eq type 'tags-todo)
+	           (org-let2 gprops lprops
+	             '(org-tags-view '(4) match)))
+	          ((eq type 'todo)
+	           (org-let2 gprops lprops
+	             '(org-todo-list match)))
+	          ((fboundp type)
+	           (org-let2 gprops lprops
+	             '(funcall type match)))
+	          (t (error "Invalid type in command series")))))
+            (message (format "FINISHED AGENDA SECTION IN %.2fs" (- (float-time) started-at)))
+            ret))))
     (widen)
     (let ((inhibit-read-only t))
       (add-text-properties (point-min) (point-max)
@@ -4914,28 +4919,32 @@ The prefix arg TODO-ONLY limits the search to TODO entries."
 	    rtnall nil)
       (while (setq file (pop files))
 	(catch 'nextfile
-	  (org-check-agenda-file file)
-	  (setq buffer (if (file-exists-p file)
-			   (org-get-agenda-file-buffer file)
-			 (error "No such file %s" file)))
-	  (if (not buffer)
-	      ;; If file does not exist, error message to agenda
-	      (setq rtn (list
-			 (format "ORG-AGENDA-ERROR: No such org-file %s" file))
-		    rtnall (append rtnall rtn))
-	    (with-current-buffer buffer
-	      (unless (derived-mode-p 'org-mode)
-		(error "Agenda file %s is not in Org mode" file))
-	      (save-excursion
-		(save-restriction
-		  (if (eq buffer org-agenda-restrict)
-		      (narrow-to-region org-agenda-restrict-begin
-					org-agenda-restrict-end)
-		    (widen))
-		  (setq rtn (org-scan-tags 'agenda
-					   matcher
-					   org--matcher-tags-todo-only))
-		  (setq rtnall (append rtnall rtn))))))))
+          (let ((started-at (float-time)))
+	    (org-check-agenda-file file)
+	    (setq buffer (if (file-exists-p file)
+			     (org-get-agenda-file-buffer file)
+			   (error "No such file %s" file)))
+            (let ((ret
+	           (if (not buffer)
+	               ;; If file does not exist, error message to agenda
+	               (setq rtn (list
+			          (format "ORG-AGENDA-ERROR: No such org-file %s" file))
+		             rtnall (append rtnall rtn))
+	             (with-current-buffer buffer
+	               (unless (derived-mode-p 'org-mode)
+		         (error "Agenda file %s is not in Org mode" file))
+	               (save-excursion
+		         (save-restriction
+		           (if (eq buffer org-agenda-restrict)
+		               (narrow-to-region org-agenda-restrict-begin
+					         org-agenda-restrict-end)
+		             (widen))
+		           (setq rtn (org-scan-tags 'agenda
+					            matcher
+					            org--matcher-tags-todo-only))
+		           (setq rtnall (append rtnall rtn))))))))
+              (message "Took %.2fs to scan %s" (- (float-time) started-at) file)
+              ret))))
       (org-agenda--insert-overriding-header
         (with-temp-buffer
 	  (insert "Headlines with TAGS match: ")
